@@ -1,0 +1,683 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CMD Council</title>
+<script src="https://cdn.jsdelivr.net/npm/livekit-client@2.23.0/dist/livekit-client.umd.js"></script>
+<style>
+  :root {
+    --bg: #202122; --panel: #242526; --seat: #2c2d2f; --line: #36373a; --edge: #4a4c50; --text: #eceef1;
+    --muted: #9a9ea5; --dim: #6e7278; --silver: #d9dde3; --talk: #4ade80; --leave: #e5533d; --blue: #4c8dff;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow-x: hidden; background: var(--bg); color: var(--text);
+    font-family: -apple-system, "SF Arabic", "Segoe UI", Tahoma, sans-serif; }
+  button { font: inherit; cursor: pointer; border: 0; border-radius: 12px; padding: 10px 16px; color: var(--text); }
+  input, textarea, select { font: inherit; color: var(--text); background: #1a1b1c; border: 1px solid var(--line);
+    border-radius: 10px; padding: 10px 12px; width: 100%; }
+  .badge-cmd { font-weight: 800; font-size: 12px; color: var(--bg); padding: 3px 7px; border-radius: 6px;
+    background: var(--silver); letter-spacing: .5px; }
+  .title { display: inline-block; font-size: 10px; font-weight: 700; color: var(--bg); background: var(--silver);
+    padding: 1px 7px; border-radius: 99px; }
+  .hidden { display: none !important; }
+
+  /* Join card */
+  #join { min-height: 100%; display: grid; place-items: center; padding: 20px; }
+  .card { width: min(420px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: 20px;
+    padding: 26px; display: grid; gap: 14px; }
+  .brand { display: flex; align-items: center; gap: 8px; font-size: 22px; font-weight: 800; }
+  .avatar { width: 96px; height: 96px; border-radius: 50%; object-fit: cover; background: var(--seat);
+    display: grid; place-items: center; font-size: 34px; font-weight: 700; color: #fff; margin: 0 auto; cursor: pointer;
+    border: 2px solid var(--edge); overflow: hidden; }
+  .avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  #lang-live { width: auto; padding: 4px 8px; border-radius: 99px; font-size: 12px; }
+  .pill.mtm { color: #3a2a05; background: #ffbd3d; font-weight: 700; }
+  .primary { background: var(--silver); color: var(--bg); font-weight: 700; padding: 13px; }
+  .note { font-size: 12px; color: var(--muted); text-align: center; }
+
+  /* Room */
+  #hall { height: 100%; display: grid; grid-template-rows: auto 1fr auto; }
+  header { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; padding: 12px 16px;
+    border-bottom: 1px solid var(--line); min-width: 0; }
+  #my-name { max-width: 40vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .live { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted);
+    background: var(--seat); padding: 4px 10px; border-radius: 99px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--leave); }
+  .spacer { flex: 1; }
+  /* dir=rtl: the first column is on the right, so the chat comes first. */
+  main { display: grid; grid-template-columns: 320px minmax(0, 1fr); min-height: 0; }
+  /* The host put the board or slides up: chat (right), the board filling the middle, the room as a slim column (left). */
+  main.with-stage { grid-template-columns: 280px minmax(0, 1fr) 176px; }
+  .stage-col { display: none; padding: 14px; min-height: 0; place-items: center; }
+  main.with-stage .stage-col { display: grid; }
+  main.with-stage .room { gap: 10px; padding: 12px 8px; border-right: 1px solid var(--line); }
+  main.with-stage .host .face { width: 64px; height: 64px; font-size: 64px; }
+  main.with-stage .host-name { font-size: 12px; }
+  main.with-stage .info #mode { display: none; }
+  main.with-stage .seats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 8px; }
+  main.with-stage .seat .face { width: 46px; height: 46px; font-size: 46px; }
+  main.with-stage .seat .sub { display: none; }
+  .room { padding: 14px 18px; display: flex; flex-direction: column; align-items: center; gap: 14px; overflow-y: auto; min-height: 0; }
+  .stage { position: relative; width: 100%; max-height: 100%; aspect-ratio: 16 / 9; background: #000;
+    border-radius: 12px; overflow: hidden; border: 1px solid var(--line); }
+  .stage video { width: 100%; height: 100%; object-fit: contain; background: #000; }
+
+  .face { position: relative; border-radius: 50%; display: grid; place-items: center; background: var(--seat);
+    border: 1.5px solid var(--edge); overflow: visible; flex: none; }
+  .face .in { width: 100%; height: 100%; border-radius: 50%; overflow: hidden; display: grid; place-items: center; }
+  .face img, .face video { width: 100%; height: 100%; object-fit: cover; }
+  .face video { transform: scaleX(-1); }
+  .face .letter { font-size: 32%; font-weight: 600; }
+  .face.talking { border: 3px solid var(--talk); }
+  .face.talking::after { content: ''; position: absolute; inset: -6px; border-radius: 50%; border: 2px solid var(--talk);
+    animation: ring 1.1s ease-out infinite; }
+  @keyframes ring { from { opacity: .6; transform: scale(1); } to { opacity: 0; transform: scale(1.18); } }
+  .mute { position: absolute; bottom: 0; left: 0; width: 26%; height: 26%; min-width: 18px; min-height: 18px; border-radius: 50%;
+    background: var(--leave); border: 2px solid var(--bg); display: grid; place-items: center; font-size: 10px; }
+  .ai-tag { position: absolute; top: -2px; left: -2px; font-size: 9px; font-weight: 900; color: var(--bg);
+    background: var(--silver); padding: 1px 5px; border-radius: 99px; }
+
+  .host { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .host .face { width: 120px; height: 120px; font-size: 120px; background: var(--silver); color: var(--bg); border-color: var(--silver); }
+  .host-name { display: flex; gap: 6px; align-items: center; font-weight: 600; }
+  .info { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  .pill { font-size: 12px; color: var(--muted); background: var(--seat); border: 1px solid var(--line);
+    padding: 5px 11px; border-radius: 99px; }
+
+  .seats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px 26px; width: min(100%, 600px); }
+  .seat { background: none; padding: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; border-radius: 12px; }
+  .seat .face { width: min(92px, 18vw); height: min(92px, 18vw); font-size: min(92px, 18vw); }
+  .seat.empty .face { background: rgba(44,45,47,.45); border: 1.2px dashed var(--edge); color: var(--muted); }
+  .seat.empty .face .letter { font-size: 34%; font-weight: 300; }
+  .seat.empty:hover .face { border-color: var(--silver); color: var(--text); }
+  .seat.locked .face { background: rgba(44,45,47,.7); border-color: var(--line); color: var(--dim); cursor: default; }
+  .seat.mine .face { border-color: var(--silver); }
+  .seat .name { font-size: 12px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .seat .sub { font-size: 10px; color: var(--dim); }
+
+  aside { border-left: 1px solid var(--line); display: grid; grid-template-rows: auto 1fr auto; min-height: 0; }
+  aside h3 { margin: 0; padding: 12px 14px; font-size: 14px; color: var(--muted); border-bottom: 1px solid var(--line); }
+  #chat { overflow-y: auto; padding: 10px 14px; display: grid; gap: 10px; align-content: start; }
+  .msg .who { font-size: 12px; font-weight: 700; color: var(--silver); display: flex; gap: 6px; align-items: center; }
+  .msg.host .who { color: var(--text); }
+  .msg .text { font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+  .chat-input { display: flex; gap: 8px; padding: 10px; border-top: 1px solid var(--line); }
+  .chat-input button { background: var(--seat); border: 1px solid var(--line); }
+  footer { display: flex; justify-content: center; gap: 10px; padding: 12px; border-top: 1px solid var(--line); flex-wrap: wrap; }
+  .ctl { background: var(--seat); border: 1px solid var(--line); min-width: 120px; }
+  .ctl.on { background: var(--silver); color: var(--bg); font-weight: 700; }
+  .ctl.mic-on { background: var(--talk); color: #08210f; font-weight: 700; }
+  .ctl:disabled { opacity: .45; cursor: not-allowed; }
+  .leave { background: var(--leave); color: #fff; }
+  .toast { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); background: var(--silver); color: var(--bg);
+    padding: 10px 18px; border-radius: 12px; font-weight: 700; box-shadow: 0 8px 24px rgba(0,0,0,.4); z-index: 9; }
+  .modal { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: grid; place-items: center; z-index: 10; padding: 20px; }
+  .modal .card { text-align: center; }
+  .modal .row { display: flex; gap: 10px; justify-content: center; }
+  #ended { min-height: 100%; display: grid; place-items: center; text-align: center; padding: 20px; }
+
+  @media (max-width: 820px) {
+    main, main.with-stage { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto; }
+    .stage-col { order: 0; padding: 8px; }
+    .room { order: 1; }
+    main.with-stage .room { border-right: 0; }
+    main.with-stage .seats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    aside { border-left: 0; border-top: 1px solid var(--line); min-height: 260px; order: 2; }
+    .seats { gap: 14px 12px; }
+    .host .face { width: 96px; height: 96px; font-size: 96px; }
+    .ctl { min-width: 0; flex: 1; }
+  }
+</style>
+</head>
+<body>
+
+<!-- 1. Your profile, then join -->
+<section id="join">
+  <div class="card">
+    <div class="brand"><span class="badge-cmd">CMD</span> Council</div>
+    <div class="note" id="invite-note">دعوة لحضور الجلسة</div>
+    <label class="avatar" id="avatar" title="اختر صورتك"><span id="initials">؟</span>
+      <input type="file" id="photo" accept="image/*" class="hidden">
+    </label>
+    <div><div class="label">اسمك</div><input id="name" maxlength="40"></div>
+    <div><div class="label">نبذة عنك (اختياري)</div><textarea id="bio" rows="2" maxlength="160"></textarea></div>
+    <div><div class="label">لغتك · Your language</div><select id="lang"></select>
+      <div class="note">تسمع الجلسة بهذي اللغة · You will hear the meeting in this language</div></div>
+    <button class="primary" id="enter">ادخل القاعة</button>
+    <div class="note" id="join-error"></div>
+  </div>
+</section>
+
+<!-- 2. The room: chat on the right, the host on top and 8 seats below -->
+<section id="hall" class="hidden">
+  <header>
+    <span class="badge-cmd">CMD</span><strong>Council</strong>
+    <span class="live"><span class="dot"></span><span id="count">مباشر</span></span>
+    <span class="spacer"></span>
+    <select id="lang-live" title="لغتك · Your language"></select>
+    <span id="my-title" class="title hidden"></span>
+    <strong id="my-name"></strong>
+  </header>
+  <main>
+    <aside>
+      <h3>الدردشة</h3>
+      <div id="chat"></div>
+      <div class="chat-input"><input id="chat-text" placeholder="اكتب رسالة…" maxlength="500"><button id="send">إرسال</button></div>
+    </aside>
+    <div class="stage-col"><div class="stage" id="stage-box"><video id="stage" autoplay playsinline muted></video></div></div>
+    <div class="room">
+      <div class="host">
+        <div class="face" id="host-face"><div class="in" id="host-in"><span class="letter" id="host-letter">؟</span></div></div>
+        <div class="host-name"><span id="host-name">المضيف</span><span class="title">المضيف</span></div>
+      </div>
+      <div class="info">
+        <span class="pill" id="listeners">🎧 يسمعون</span>
+        <span class="pill" id="mode">الكراسي بموافقة المضيف</span>
+        <span class="pill mtm hidden" id="mtm-pill">ترجمة فورية</span>
+      </div>
+      <div class="seats" id="seats"></div>
+    </div>
+  </main>
+  <footer>
+    <button class="ctl" id="hand">✋ اطلب كرسي</button>
+    <button class="ctl hidden" id="mic">🎤 المايك</button>
+    <button class="ctl hidden" id="down">انزل من الكرسي</button>
+    <button class="leave" id="leave">خروج</button>
+  </footer>
+</section>
+
+<div class="modal hidden" id="invite">
+  <div class="card">
+    <div class="brand" style="justify-content:center;font-size:18px">🎤 دعوة للكرسي</div>
+    <div id="invite-text">المضيف يدعوك تطلع على كرسي وتتكلم.</div>
+    <div class="row"><button class="primary" id="accept">اطلع</button><button class="ctl" id="decline">لا، شكراً</button></div>
+  </div>
+</div>
+
+<section id="ended" class="hidden"><div><div class="brand" style="justify-content:center"><span class="badge-cmd">CMD</span> Council</div>
+  <p id="ended-text" style="color:var(--muted)">انتهت الجلسة. شكراً لحضورك.</p></div></section>
+
+<script>
+(() => {
+  const LK = window.LivekitClient;
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.hash.slice(1));
+  const url = params.get('url');
+  const token = params.get('token');
+  const demo = params.has('demo');   // #demo: the room with sample people, to check the layout
+  const TOPIC = 'council';
+  const enc = new TextEncoder(), dec = new TextDecoder();
+  let room, me = '', hostId = '', handUp = false, canSpeak = false, micOn = false, introduced = false;
+  let profileName = '', profileBio = '';
+  let seats = [], seatsOpen = false, talking = new Set(), aiTalking = -1, inviteSeat = null;
+  const faces = {}, titles = {}, clips = {};
+  // MTM: each listener hears the meeting in their own language.
+  const LANGS = [['ar','العربية'],['en','English'],['tr','Türkçe'],['fr','Français'],['es','Español'],['de','Deutsch'],
+    ['it','Italiano'],['pt','Português'],['ru','Русский'],['zh','中文'],['ja','日本語'],['ko','한국어'],['hi','हिन्दी'],
+    ['ur','اردو'],['fa','فارسی'],['id','Bahasa Indonesia'],['ms','Bahasa Melayu'],['bn','বাংলা'],['nl','Nederlands'],
+    ['pl','Polski'],['el','Ελληνικά'],['sw','Kiswahili'],['vi','Tiếng Việt'],['th','ไทย'],['tl','Filipino']];
+  let myLang = 'ar', mtmOn = false, langOf = {}, mtmQueue = [], mtmPlaying = false, heardNow = '';
+
+  // Your profile for the host. Sent on joining, and again once the host's welcome arrives:
+  // a message that lands before the host has registered you can't be matched to you.
+  function sayHello() { send({ type: 'hello', name: profileName, bio: profileBio, photo, lang: myLang }); }
+
+  // The token's middle part is base64url-encoded UTF-8 JSON (names may be Arabic).
+  function claims(t) {
+    try {
+      let b = t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+      b += '='.repeat((4 - b.length % 4) % 4);
+      const bytes = Uint8Array.from(atob(b), (ch) => ch.charCodeAt(0));
+      return JSON.parse(new TextDecoder().decode(bytes));
+    } catch { return {}; }
+  }
+  const safeB64 = (s) => typeof s === 'string' && /^[A-Za-z0-9+/=]+$/.test(s) && s.length < 60000;
+
+  // --- Join screen ---
+  if (!demo && (!url || !token || !LK)) {
+    $('enter').disabled = true;
+    $('join-error').textContent = !LK ? 'ما قدرت أحمّل مكتبة الاتصال. تأكد من الإنترنت.' : 'الرابط ناقص. اطلب رابط دعوة جديد.';
+  }
+  const c = claims(token || '');
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem('cmd-profile') || '{}'); } catch {}
+  $('name').value = saved.name || c.name || '';
+  $('bio').value = saved.bio || '';
+  {
+    const nav = (navigator.language || 'ar').slice(0, 2).toLowerCase();
+    myLang = LANGS.some((l) => l[0] === saved.lang) ? saved.lang : (LANGS.some((l) => l[0] === nav) ? nav : 'ar');
+    for (const sel of [$('lang'), $('lang-live')]) {
+      for (const [code, label] of LANGS) sel.appendChild(new Option(label, code, false, code === myLang));
+    }
+    const pick = (v) => {
+      myLang = v; $('lang').value = v; $('lang-live').value = v;
+      try { const pr = JSON.parse(localStorage.getItem('cmd-profile') || '{}'); pr.lang = v; localStorage.setItem('cmd-profile', JSON.stringify(pr)); } catch {}
+      applyMute();
+    };
+    $('lang').addEventListener('change', (e) => pick(e.target.value));
+    $('lang-live').addEventListener('change', (e) => { pick(e.target.value); sayHello(); });
+  }
+  let photo = saved.photo || null;
+  function showAvatar() {
+    const a = $('avatar');
+    a.querySelectorAll('img').forEach((i) => i.remove());
+    if (photo && safeB64(photo)) {
+      const img = document.createElement('img');
+      img.src = 'data:image/jpeg;base64,' + photo;
+      a.prepend(img);
+      $('initials').classList.add('hidden');
+    } else {
+      $('initials').textContent = ($('name').value.trim()[0] || '؟');
+      $('initials').classList.remove('hidden');
+    }
+  }
+  showAvatar();
+  $('name').addEventListener('input', showAvatar);
+  $('photo').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const img = new Image();
+    img.onload = () => {
+      const size = 72, cv = document.createElement('canvas');
+      cv.width = cv.height = size;
+      const s = Math.min(img.width, img.height);
+      cv.getContext('2d').drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, size, size);
+      photo = cv.toDataURL('image/jpeg', 0.7).split(',')[1];
+      showAvatar();
+      URL.revokeObjectURL(img.src);
+    };
+    img.src = URL.createObjectURL(file);
+  });
+
+  $('enter').addEventListener('click', async () => {
+    const name = $('name').value.trim() || c.name || 'ضيف';
+    try { localStorage.setItem('cmd-profile', JSON.stringify({ name, bio: $('bio').value.trim(), photo, lang: myLang })); } catch {}
+    if (demo) { startDemo(name); return; }
+    $('enter').disabled = true;
+    $('enter').textContent = 'يدخل…';
+    try {
+      room = new LK.Room({ adaptiveStream: true, dynacast: true });
+      wire(room);
+      await room.connect(url, token);
+      await room.startAudio();
+      me = room.localParticipant.identity;
+      $('my-name').textContent = name;
+      $('join').classList.add('hidden');
+      $('hall').classList.remove('hidden');
+      profileName = name;
+      profileBio = $('bio').value.trim();
+      if (photo) faces[me] = photo;
+      sayHello();
+      for (const p of room.remoteParticipants.values()) {
+        for (const pub of p.trackPublications.values()) if (pub.track) attach(pub.track, p);
+      }
+      updateCount();
+      renderSeats();
+    } catch (err) {
+      $('enter').disabled = false;
+      $('enter').textContent = 'ادخل القاعة';
+      $('join-error').textContent = 'ما قدرت أدخل: ' + (err && err.message ? err.message : err);
+    }
+  });
+
+  // --- Room ---
+  function send(obj) {
+    if (!room) return;
+    room.localParticipant.publishData(enc.encode(JSON.stringify(obj)), { reliable: true, topic: TOPIC });
+  }
+
+  function isHost(p) { return p && p.identity && p.identity.startsWith('host-'); }
+
+  // Someone's real voice. With translation on, a speaker of another language is muted here:
+  // their words arrive translated instead.
+  function addVoice(track, p) {
+    const el = track.attach();
+    el.dataset.who = p.identity;
+    document.body.appendChild(el);
+    applyMute();
+  }
+  function applyMute() {
+    document.querySelectorAll('audio[data-who]').forEach((a) => {
+      const l = langOf[a.dataset.who];
+      a.muted = mtmOn && !!l && l !== myLang;
+    });
+  }
+
+  function attach(track, p) {
+    if (!isHost(p)) { if (track.kind === 'audio') addVoice(track, p); return; }
+    if (track.kind === 'audio') { addVoice(track, p); return; }
+    if (track.source === LK.Track.Source.ScreenShare) {
+      track.attach($('stage'));
+    } else if (track.source === LK.Track.Source.Camera) {
+      // The host's camera fills the host's circle.
+      let v = $('host-cam');
+      if (!v) { v = document.createElement('video'); v.id = 'host-cam'; v.autoplay = true; v.playsInline = true; v.muted = true; }
+      $('host-in').replaceChildren(v);
+      track.attach(v);
+    }
+  }
+
+  function updateCount() {
+    if (!room) return;
+    $('count').textContent = 'مباشر · ' + (room.remoteParticipants.size + 1) + ' في القاعة';
+  }
+
+  function toast(text) {
+    const t = document.createElement('div');
+    t.className = 'toast';
+    t.textContent = text;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 3500);
+  }
+
+  function addChat(name, text, title, host) {
+    const m = document.createElement('div');
+    m.className = 'msg' + (host ? ' host' : '');
+    const who = document.createElement('div');
+    who.className = 'who';
+    who.textContent = name;
+    if (title) { const b = document.createElement('span'); b.className = 'title'; b.textContent = title; who.appendChild(b); }
+    const tx = document.createElement('div');
+    tx.className = 'text';
+    tx.textContent = text;
+    m.append(who, tx);
+    $('chat').appendChild(m);
+    $('chat').scrollTop = $('chat').scrollHeight;
+  }
+
+  function setTitle(title) {
+    const el = $('my-title');
+    if (title) { el.textContent = title; el.classList.remove('hidden'); } else { el.classList.add('hidden'); }
+  }
+
+  function mySeat() { return seats.findIndex((s) => s && s.id === me); }
+
+  // A circle: the photo, or the first letter.
+  function faceInner(id, name) {
+    const inner = document.createElement('div');
+    inner.className = 'in';
+    const ph = faces[id];
+    if (ph && safeB64(ph)) {
+      const img = document.createElement('img');
+      img.src = 'data:image/jpeg;base64,' + ph;
+      inner.appendChild(img);
+    } else {
+      const l = document.createElement('span');
+      l.className = 'letter';
+      l.textContent = (name || '؟').trim()[0] || '؟';
+      inner.appendChild(l);
+    }
+    return inner;
+  }
+
+  function renderSeats() {
+    const box = $('seats');
+    box.replaceChildren();
+    const mine = mySeat();
+    for (let i = 0; i < 8; i++) {
+      const s = seats[i] || {};
+      const b = document.createElement('button');
+      const f = document.createElement('div');
+      f.className = 'face';
+      const name = document.createElement('div');
+      name.className = 'name';
+      const sub = document.createElement('div');
+      sub.className = 'sub';
+      if (s.id) {
+        b.className = 'seat' + (s.id === me ? ' mine' : '');
+        f.appendChild(faceInner(s.id, s.name));
+        const isTalking = s.ai ? aiTalking === i : (talking.has(s.id) || heardNow === s.id);
+        if (isTalking) f.classList.add('talking');
+        if (s.ai) { const t = document.createElement('span'); t.className = 'ai-tag'; t.textContent = 'AI'; f.appendChild(t); }
+        if (s.muted) { const m = document.createElement('span'); m.className = 'mute'; m.textContent = '🔇'; f.appendChild(m); }
+        name.textContent = s.id === me ? 'أنت' : (s.name || 'ضيف');
+        sub.textContent = s.title || (s.ai ? 'اكتب اسمه في الدردشة' : '');
+        b.title = s.ai ? 'ذكاء صناعي: اكتب اسمه في الدردشة ويرد بصوته' : (s.name || '');
+      } else if (s.locked) {
+        b.className = 'seat locked';
+        b.disabled = true;
+        const l = document.createElement('span'); l.className = 'letter'; l.textContent = '🔒'; f.appendChild(l);
+        name.textContent = 'مقفول';
+      } else {
+        b.className = 'seat empty';
+        const l = document.createElement('span'); l.className = 'letter'; l.textContent = '+'; f.appendChild(l);
+        name.textContent = String(i + 1);
+        b.title = seatsOpen ? 'اضغط واجلس وتكلم' : 'اضغط وأرسل طلب للمضيف';
+        b.addEventListener('click', () => askSeat(i));
+      }
+      b.append(f, name, sub);
+      box.appendChild(b);
+    }
+    const seated = mine >= 0;
+    $('mic').classList.toggle('hidden', !seated);
+    $('down').classList.toggle('hidden', !seated);
+    $('hand').classList.toggle('hidden', seated);
+  }
+
+  function askSeat(i) {
+    if (mySeat() >= 0 && !seatsOpen) { toast('أنت جالس على كرسي. انزل أول عشان تغيّر.'); return; }
+    if (demo) { demoSit(i); return; }
+    send({ type: 'seat', seat: i });
+    if (!seatsOpen) {
+      handUp = true;
+      $('hand').classList.add('on');
+      $('hand').textContent = 'طلبك وصل للمضيف · اسحبه';
+      toast('طلبك وصل للمضيف');
+    }
+  }
+
+  function setCanSpeak(allowed) {
+    if (allowed === canSpeak) return;
+    canSpeak = allowed;
+    $('mic').disabled = !allowed;
+    if (allowed) {
+      handUp = false;
+      $('hand').classList.remove('on');
+      $('hand').textContent = '✋ اطلب كرسي';
+      toast('صرت على الكرسي 🎤 شغّل المايك وتكلم');
+    } else if (micOn) {
+      micOn = false;
+      $('mic').classList.remove('mic-on');
+      $('mic').textContent = '🎤 المايك';
+      if (room) room.localParticipant.setMicrophoneEnabled(false).catch(() => {});
+    }
+  }
+
+  function setHost(h) {
+    if (!h) return;
+    if (typeof h.name === 'string') $('host-name').textContent = h.name;
+    if (h.photo && safeB64(h.photo) && !$('host-cam')) {
+      const img = document.createElement('img');
+      img.src = 'data:image/jpeg;base64,' + h.photo;
+      $('host-in').replaceChildren(img);
+    } else if (!$('host-cam') && typeof h.name === 'string') {
+      $('host-letter') && ($('host-letter').textContent = h.name.trim()[0] || '؟');
+    }
+  }
+
+  function applyState(m) {
+    if (m.host) setHost(m.host);
+    if (m.titles && typeof m.titles === 'object') { Object.assign(titles, m.titles); setTitle(titles[me]); }
+    if (Array.isArray(m.speakers)) setCanSpeak(m.speakers.includes(me));
+    if (Array.isArray(m.seats)) seats = m.seats.slice(0, 8);
+    if (typeof m.open === 'boolean') {
+      seatsOpen = m.open;
+      $('mode').textContent = seatsOpen ? 'الكراسي مفتوحة: اضغط ➕ واجلس' : 'الكراسي بموافقة المضيف';
+    }
+    if (typeof m.listeners === 'number') $('listeners').textContent = '🎧 ' + m.listeners + ' يسمعون';
+    if (typeof m.stage === 'boolean') document.querySelector('main').classList.toggle('with-stage', m.stage);
+    if (m.mtm && typeof m.mtm === 'object') {
+      mtmOn = !!m.mtm.on;
+      langOf = (m.mtm.langs && typeof m.mtm.langs === 'object') ? m.mtm.langs : {};
+      $('mtm-pill').classList.toggle('hidden', !mtmOn);
+      applyMute();
+    }
+    renderSeats();
+  }
+
+  // The AI's voice arrives in pieces; once all are here it plays.
+  function clipPart(m) {
+    if (typeof m.data !== 'string' || typeof m.clip !== 'string') return;
+    const c = clips[m.clip] || (clips[m.clip] = { parts: [], got: 0 });
+    if (c.parts[m.part] === undefined) { c.parts[m.part] = m.data; c.got++; }
+    if (c.got === m.parts && m.type === 'mtm') {
+      delete clips[m.clip];
+      mtmQueue.push({ src: 'data:' + (m.mime || 'audio/mp4') + ';base64,' + c.parts.join(''),
+                      speaker: typeof m.speaker === 'string' ? m.speaker : '', seat: m.seat });
+      if (!mtmPlaying) playTranslation();
+      return;
+    }
+    if (c.got === m.parts) {
+      delete clips[m.clip];
+      const audio = new Audio('data:' + (m.mime || 'audio/mp4') + ';base64,' + c.parts.join(''));
+      aiTalking = m.seat; renderSeats();
+      audio.onended = audio.onerror = () => { if (aiTalking === m.seat) { aiTalking = -1; renderSeats(); } };
+      audio.play().catch(() => { aiTalking = -1; renderSeats(); });
+    }
+  }
+
+  // Translations play one after another, in order; the speaker's circle glows meanwhile.
+  function playTranslation() {
+    const next = mtmQueue.shift();
+    if (!next) { mtmPlaying = false; heardNow = ''; aiTalking = -1; glow(); return; }
+    mtmPlaying = true;
+    heardNow = next.speaker;
+    if (next.speaker.startsWith('ai-seat-') && next.seat >= 0) aiTalking = next.seat;
+    glow();
+    const audio = new Audio(next.src);
+    audio.onended = audio.onerror = () => playTranslation();
+    audio.play().catch(() => playTranslation());
+  }
+  function glow() {
+    $('host-face').classList.toggle('talking', [...talking].some((id) => id.startsWith('host-')) || heardNow.startsWith('host-'));
+    renderSeats();
+  }
+
+  function wire(r) {
+    r.on(LK.RoomEvent.TrackSubscribed, (track, pub, p) => attach(track, p));
+    r.on(LK.RoomEvent.TrackUnsubscribed, (track, pub, p) => {
+      track.detach();
+      if (isHost(p) && track.source === LK.Track.Source.Camera) {
+        $('host-in').replaceChildren(Object.assign(document.createElement('span'), { className: 'letter', id: 'host-letter',
+          textContent: ($('host-name').textContent || '؟').trim()[0] }));
+      }
+    });
+    r.on(LK.RoomEvent.ParticipantConnected, updateCount);
+    r.on(LK.RoomEvent.ParticipantDisconnected, updateCount);
+    r.on(LK.RoomEvent.ActiveSpeakersChanged, (speakers) => {
+      talking = new Set(speakers.map((p) => p.identity));
+      glow();
+    });
+    r.on(LK.RoomEvent.TrackMuted, (pub, p) => {
+      if (p === r.localParticipant && pub.source === LK.Track.Source.Microphone && micOn) {
+        micOn = false; $('mic').classList.remove('mic-on'); $('mic').textContent = '🎤 المايك'; toast('المضيف كتم المايك');
+      }
+    });
+    r.on(LK.RoomEvent.ParticipantPermissionsChanged, (prev, p) => {
+      if (p === r.localParticipant) setCanSpeak(!!(p.permissions && p.permissions.canPublish));
+    });
+    r.on(LK.RoomEvent.Disconnected, () => {
+      $('hall').classList.add('hidden');
+      $('ended').classList.remove('hidden');
+    });
+    r.on(LK.RoomEvent.DataReceived, (payload, p, kind, topic) => {
+      if (topic !== TOPIC || !p) return;
+      let m; try { m = JSON.parse(dec.decode(payload)); } catch { return; }
+      const fromHost = isHost(p);
+      if (m.type === 'chat' && typeof m.text === 'string') {
+        if (fromHost && m.ai) addChat(m.name || 'AI', m.text.slice(0, 600), 'AI', false);
+        else addChat(fromHost ? (m.name || p.name || 'المضيف') : (p.name || 'عضو'), m.text.slice(0, 500),
+                     fromHost ? 'CMD Host' : titles[p.identity], fromHost);
+        return;
+      }
+      if (!fromHost) return;   // everything below only from the host
+      hostId = p.identity;
+      if (m.type === 'state') {
+        if (!introduced) { introduced = true; sayHello(); }
+        applyState(m);
+      } else if (m.type === 'face' && typeof m.identity === 'string' && safeB64(m.photo)) {
+        faces[m.identity] = m.photo;
+        renderSeats();
+      } else if (m.type === 'clip' || m.type === 'mtm') {
+        clipPart(m);
+      } else if (m.type === 'ai_talk') {
+        aiTalking = m.on ? m.seat : -1;
+        renderSeats();
+      } else if (m.type === 'invite' && m.identity === me) {
+        inviteSeat = m.seat;
+        $('invite-text').textContent = 'المضيف يدعوك تطلع على كرسي ' + (Number(m.seat) + 1) + ' وتتكلم.';
+        $('invite').classList.remove('hidden');
+      } else if (m.type === 'title') {
+        titles[m.identity] = m.title || undefined;
+        if (m.identity === me) { setTitle(m.title); if (m.title) toast('صار لقبك: ' + m.title); }
+      } else if (m.type === 'speak' && m.identity === me) {
+        setCanSpeak(!!m.allowed);
+      } else if (m.type === 'lower' && m.identity === me) {
+        handUp = false;
+        $('hand').classList.remove('on');
+        $('hand').textContent = '✋ اطلب كرسي';
+      }
+    });
+  }
+
+  $('hand').addEventListener('click', () => {
+    if (demo) return;
+    handUp = !handUp;
+    $('hand').classList.toggle('on', handUp);
+    $('hand').textContent = handUp ? 'طلبك وصل للمضيف · اسحبه' : '✋ اطلب كرسي';
+    send({ type: 'hand', up: handUp });
+  });
+  $('mic').addEventListener('click', async () => {
+    if (!canSpeak) return;
+    micOn = !micOn;
+    try {
+      if (room) await room.localParticipant.setMicrophoneEnabled(micOn);
+      $('mic').classList.toggle('mic-on', micOn);
+      $('mic').textContent = micOn ? '🎤 تتكلم الحين' : '🎤 المايك';
+    } catch (e) { micOn = false; toast('ما قدرت أشغّل المايك'); }
+  });
+  $('down').addEventListener('click', () => {
+    if (demo) { const i = mySeat(); if (i >= 0) seats[i] = {}; canSpeak = false; renderSeats(); return; }
+    send({ type: 'unseat' });
+  });
+  $('accept').addEventListener('click', () => {
+    $('invite').classList.add('hidden');
+    send({ type: 'seat', seat: inviteSeat });
+  });
+  $('decline').addEventListener('click', () => {
+    $('invite').classList.add('hidden');
+    send({ type: 'decline' });
+  });
+  function sendChat() {
+    const t = $('chat-text').value.trim();
+    if (!t) return;
+    send({ type: 'chat', text: t });
+    addChat($('my-name').textContent || 'أنا', t, titles[me], false);
+    $('chat-text').value = '';
+  }
+  $('send').addEventListener('click', sendChat);
+  $('chat-text').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
+  $('leave').addEventListener('click', () => room ? room.disconnect() : location.reload());
+
+  // --- #demo: sample room, nothing is sent anywhere ---
+  function startDemo(name) {
+    me = 'me';
+    $('my-name').textContent = name;
+    if (photo) faces[me] = photo;
+    $('join').classList.add('hidden');
+    $('hall').classList.remove('hidden');
+    $('count').textContent = 'مباشر · 24 في القاعة';
+    talking = new Set(['a']);
+    applyState({ host: { name: 'المضيف' }, open: false, listeners: 19, stage: params.has('stage'),
+      seats: [{ id: 'a', name: 'فهد' }, { id: 'b', name: 'نورة' }, { id: 'c', name: 'ريم', muted: true },
+              { id: 'ai:gemini', name: 'Gemini', ai: true }, { id: 'd', name: 'لمى', title: 'CMD Designer' }, {}, { locked: true }, {}] });
+    addChat('سارة', 'مساء الخير جميعاً، الصوت واضح؟', 'CMD Designer', false);
+    addChat('Gemini', 'مساء النور للجميع، سعيد بوجودي معاكم.', 'AI', false);
+  }
+  function demoSit(i) { seats[i] = { id: me, name: $('my-name').textContent }; canSpeak = true; renderSeats(); toast('صرت على الكرسي 🎤'); }
+})();
+</script>
+</body>
+</html>
