@@ -174,24 +174,24 @@
       </div>
       <div class="info">
         <span class="pill" id="listeners">🎧 يسمعون</span>
-        <span class="pill" id="mode">الكراسي بموافقة المضيف</span>
+        <span class="pill" id="mode">المقاعد بموافقة المضيف</span>
         <span class="pill mtm hidden" id="mtm-pill">ترجمة فورية</span>
       </div>
       <div class="seats" id="seats"></div>
     </div>
   </main>
   <footer>
-    <button class="ctl" id="hand">✋ اطلب كرسي</button>
+    <button class="ctl" id="hand">✋ اطلب مقعد</button>
     <button class="ctl hidden" id="mic">🎤 المايك</button>
-    <button class="ctl hidden" id="down">انزل من الكرسي</button>
+    <button class="ctl hidden" id="down">انزل من المقعد</button>
     <button class="leave" id="leave">خروج</button>
   </footer>
 </section>
 
 <div class="modal hidden" id="invite">
   <div class="card">
-    <div class="brand" style="justify-content:center;font-size:18px">🎤 دعوة للكرسي</div>
-    <div id="invite-text">المضيف يدعوك تطلع على كرسي وتتكلم.</div>
+    <div class="brand" style="justify-content:center;font-size:18px">🎤 دعوة للمقعد</div>
+    <div id="invite-text">المضيف يدعوك تطلع على مقعد وتتكلم.</div>
     <div class="row"><button class="primary" id="accept">اطلع</button><button class="ctl" id="decline">لا، شكراً</button></div>
   </div>
 </div>
@@ -457,7 +457,7 @@
   }
 
   function askSeat(i) {
-    if (mySeat() >= 0 && !seatsOpen) { toast('أنت جالس على كرسي. انزل أول عشان تغيّر.'); return; }
+    if (mySeat() >= 0 && !seatsOpen) { toast('أنت جالس على مقعد. انزل أول عشان تغيّر.'); return; }
     if (demo) { demoSit(i); return; }
     send({ type: 'seat', seat: i });
     if (!seatsOpen) {
@@ -475,8 +475,8 @@
     if (allowed) {
       handUp = false;
       $('hand').classList.remove('on');
-      $('hand').textContent = '✋ اطلب كرسي';
-      toast('صرت على الكرسي 🎤 شغّل المايك وتكلم');
+      $('hand').textContent = '✋ اطلب مقعد';
+      toast('صرت على المقعد 🎤 شغّل المايك وتكلم');
     } else if (micOn) {
       micOn = false;
       $('mic').classList.remove('mic-on');
@@ -504,7 +504,7 @@
     if (Array.isArray(m.seats)) seats = m.seats.slice(0, 8);
     if (typeof m.open === 'boolean') {
       seatsOpen = m.open;
-      $('mode').textContent = seatsOpen ? 'الكراسي مفتوحة: اضغط ➕ واجلس' : 'الكراسي بموافقة المضيف';
+      $('mode').textContent = seatsOpen ? 'المقاعد مفتوحة: اضغط ➕ واجلس' : 'المقاعد بموافقة المضيف';
     }
     if (typeof m.listeners === 'number') $('listeners').textContent = '🎧 ' + m.listeners + ' يسمعون';
     if (typeof m.stage === 'boolean') document.querySelector('main').classList.toggle('with-stage', m.stage);
@@ -607,7 +607,7 @@
         renderSeats();
       } else if (m.type === 'invite' && m.identity === me) {
         inviteSeat = m.seat;
-        $('invite-text').textContent = 'المضيف يدعوك تطلع على كرسي ' + (Number(m.seat) + 1) + ' وتتكلم.';
+        $('invite-text').textContent = 'المضيف يدعوك تطلع على مقعد ' + (Number(m.seat) + 1) + ' وتتكلم.';
         $('invite').classList.remove('hidden');
       } else if (m.type === 'title') {
         titles[m.identity] = m.title || undefined;
@@ -617,7 +617,7 @@
       } else if (m.type === 'lower' && m.identity === me) {
         handUp = false;
         $('hand').classList.remove('on');
-        $('hand').textContent = '✋ اطلب كرسي';
+        $('hand').textContent = '✋ اطلب مقعد';
       }
     });
   }
@@ -626,7 +626,7 @@
     if (demo) return;
     handUp = !handUp;
     $('hand').classList.toggle('on', handUp);
-    $('hand').textContent = handUp ? 'طلبك وصل للمضيف · اسحبه' : '✋ اطلب كرسي';
+    $('hand').textContent = handUp ? 'طلبك وصل للمضيف · اسحبه' : '✋ اطلب مقعد';
     send({ type: 'hand', up: handUp });
   });
   $('mic').addEventListener('click', async () => {
@@ -676,7 +676,7 @@
     addChat('سارة', 'مساء الخير جميعاً، الصوت واضح؟', 'CMD Designer', false);
     addChat('Gemini', 'مساء النور للجميع، سعيد بوجودي معاكم.', 'AI', false);
   }
-  function demoSit(i) { seats[i] = { id: me, name: $('my-name').textContent }; canSpeak = true; renderSeats(); toast('صرت على الكرسي 🎤'); }
+  function demoSit(i) { seats[i] = { id: me, name: $('my-name').textContent }; canSpeak = true; renderSeats(); toast('صرت على المقعد 🎤'); }
 })();
 </script>
 </body>
