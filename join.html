@@ -103,6 +103,7 @@
   .msg .who { font-size: 12px; font-weight: 700; color: var(--silver); display: flex; gap: 6px; align-items: center; }
   .msg.host .who { color: var(--text); }
   .msg .text { font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+  .msg .tr-note { background: none; border: 0; padding: 2px 0 0; font-size: 11px; color: var(--silver); opacity: .75; cursor: pointer; text-align: start; }
   .chat-input { display: flex; gap: 8px; padding: 10px; border-top: 1px solid var(--line); }
   .chat-input button { background: var(--seat); border: 1px solid var(--line); }
   footer { display: flex; justify-content: center; gap: 10px; padding: 12px; border-top: 1px solid var(--line); flex-wrap: wrap; }
@@ -372,7 +373,7 @@
     setTimeout(() => t.remove(), 3500);
   }
 
-  function addChat(name, text, title, host) {
+  function addChat(name, text, title, host, tr) {
     const m = document.createElement('div');
     m.className = 'msg' + (host ? ' host' : '');
     const who = document.createElement('div');
@@ -383,8 +384,40 @@
     tx.className = 'text';
     tx.textContent = text;
     m.append(who, tx);
+    // Translated for you: say from what, and show the original on a tap.
+    if (tr) {
+      const label = (LANGS.find((l) => l[0] === tr.lang) || [tr.lang, tr.lang])[1];
+      const note = document.createElement('button');
+      note.className = 'tr-note';
+      let orig = false;
+      const show = () => {
+        tx.textContent = orig ? tr.orig : text;
+        note.textContent = orig ? '🌐 النص الأصلي · Original' : '🌐 مترجمة من ' + label + ' · Translated';
+      };
+      note.addEventListener('click', () => { orig = !orig; show(); });
+      show();
+      m.appendChild(note);
+    }
     $('chat').appendChild(m);
     $('chat').scrollTop = $('chat').scrollHeight;
+  }
+
+  // Chat in another language waits for the host's translation (a second or two), or shows as written after 8 s.
+  const heldChat = {}, earlyChat = {};
+  function holdChat(mid, args) {
+    if (earlyChat[mid]) { const t = earlyChat[mid]; delete earlyChat[mid]; showTranslated(args, t); return; }
+    heldChat[mid] = { args, timer: setTimeout(() => { delete heldChat[mid]; addChat(...args); }, 8000) };
+  }
+  function gotChatTranslation(m) {
+    const h = heldChat[m.mid];
+    if (!h) { earlyChat[m.mid] = m; return; }
+    clearTimeout(h.timer);
+    delete heldChat[m.mid];
+    showTranslated(h.args, m);
+  }
+  function showTranslated(args, m) {
+    if (m.failed || m.text === args[1]) { addChat(...args); return; }
+    addChat(args[0], m.text.slice(0, 600), args[2], args[3], { orig: args[1], lang: m.lang });
   }
 
   function setTitle(title) {
@@ -587,9 +620,17 @@
       let m; try { m = JSON.parse(dec.decode(payload)); } catch { return; }
       const fromHost = isHost(p);
       if (m.type === 'chat' && typeof m.text === 'string') {
-        if (fromHost && m.ai) addChat(m.name || 'AI', m.text.slice(0, 600), 'AI', false);
-        else addChat(fromHost ? (m.name || p.name || 'المضيف') : (p.name || 'عضو'), m.text.slice(0, 500),
-                     fromHost ? 'CMD Host' : titles[p.identity], fromHost);
+        const args = (fromHost && m.ai)
+          ? [m.name || 'AI', m.text.slice(0, 600), 'AI', false]
+          : [fromHost ? (m.name || p.name || 'المضيف') : (p.name || 'عضو'), m.text.slice(0, 500),
+             fromHost ? 'CMD Host' : titles[p.identity], fromHost];
+        const src = langOf[p.identity];
+        if (mtmOn && typeof m.mid === 'string' && src && src !== myLang) holdChat(m.mid, args);
+        else addChat(...args);
+        return;
+      }
+      if (m.type === 'chat-t' && fromHost && typeof m.mid === 'string' && typeof m.text === 'string') {
+        gotChatTranslation(m);
         return;
       }
       if (!fromHost) return;   // everything below only from the host
@@ -653,7 +694,7 @@
   function sendChat() {
     const t = $('chat-text').value.trim();
     if (!t) return;
-    send({ type: 'chat', text: t });
+    send({ type: 'chat', text: t, mid: Date.now().toString(36) + Math.random().toString(36).slice(2, 8) });
     addChat($('my-name').textContent || 'أنا', t, titles[me], false);
     $('chat-text').value = '';
   }
